@@ -1,8 +1,9 @@
+// layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { UserProvider } from "@auth0/nextjs-auth0/client";
 import "../styles/globals.css";
 import NavBar from "@/components/navbar";
+import { Providers } from "@/app/providers";
 import type { FC, PropsWithChildren } from "react";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -22,10 +23,10 @@ const RootLayout: FC<PropsWithChildren<{}>> = ({ children }) => {
       <body
         className={`mx-auto min-h-screen justify-center w-full ${inter.className}`}
       >
-        <UserProvider>
+        <Providers>
           <NavBar />
           <div className="p-8">{children}</div>
-        </UserProvider>
+        </Providers>
       </body>
     </html>
   );
