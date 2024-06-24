@@ -23,6 +23,7 @@ export async function GET(
   request: Request,
   { params }: { params: { auth0_id: string } }, // auth0_id
 ) {
+  console.log("Received GET request with params:", params);
   const { auth0_id } = params;
   const cleanedAuth0Id = cleanAuth0Id(auth0_id);
   if (!cleanedAuth0Id) {
@@ -44,6 +45,7 @@ export async function PUT(
   request: Request,
   { params }: { params: { auth0_id: string } }, // auth0_id
 ) {
+  console.log("Received PUT request with params:", params);
   const { auth0_id } = params;
   const cleanedAuth0Id = cleanAuth0Id(auth0_id);
   if (!cleanedAuth0Id) {
@@ -65,6 +67,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: { auth0_id: string } }, // auth0_id
 ) {
+  console.log("Received DELETE request with params:", params);
   const { auth0_id } = params;
   const cleanedAuth0Id = cleanAuth0Id(auth0_id);
   if (!cleanedAuth0Id) {
