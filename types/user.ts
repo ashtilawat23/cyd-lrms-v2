@@ -11,9 +11,8 @@ export type User = {
     role: Role;
   }[];
   chapters: string[]; // Array of chapter IDs
-  payment_info: {
-    stripe_id: string;
-  };
+  hasAccess: boolean; // Added hasAccess field
+  stripe_subscription_id: string; // Added stripe_subscription_id field
 }
 
 export const UserDisplayColumns: CrudDisplayColumn[] = [
@@ -40,6 +39,16 @@ export const UserDisplayColumns: CrudDisplayColumn[] = [
   {
     label: "Role",
     key: "role",
+    sortable: true,
+  },
+  {
+    label: "Has Access",
+    key: "hasAccess",
+    sortable: true,
+  },
+  {
+    label: "Stripe Subscription ID",
+    key: "stripe_subscription_id",
     sortable: true,
   },
   {
@@ -89,6 +98,24 @@ export const UserCrudFields: CrudFieldMap = {
   role: {
     name: 'role',
     label: 'Role',
+    addable: true,
+    requiredOnAdd: false,
+    editable: true,
+    requiredOnEdit: false,
+    deletable: true,
+  },
+  hasAccess: {
+    name: 'hasAccess',
+    label: 'Has Access',
+    addable: true,
+    requiredOnAdd: false,
+    editable: true,
+    requiredOnEdit: false,
+    deletable: true,
+  },
+  stripe_subscription_id: {
+    name: 'stripe_subscription_id',
+    label: 'Stripe Subscription ID',
     addable: true,
     requiredOnAdd: false,
     editable: true,

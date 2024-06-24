@@ -1,6 +1,6 @@
 export enum DbCollection {
-    Organization = 'organization',
-    Chapter = 'chapter',
-    Course = 'course',
-    User = 'user',
+    Organization = 'organizations',
+    Chapter = 'chapters',
+    Course = 'courses',
+    User = 'users',
   }

@@ -1,22 +1,22 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import connectMongo from '@/libs/mongoose';
-import User from '@/db/schema/user';
+import { fetcher } from '@/utils/swr';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: '2024-04-10'
+  apiVersion: '2024-04-10',
 });
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
-export async function POST(req: Request): Promise<Response> {
-  await connectMongo();
+type ErrorResponse = {
+  error: string;
+  message?: string;
+};
 
+export async function POST(req: Request): Promise<Response> {
   const body = await req.text();
   const signature = headers().get('stripe-signature') as string;
 
-  let data: Stripe.Event.Data;
-  let eventType: string;
   let event: Stripe.Event;
 
   // Verify Stripe event is legit
@@ -24,47 +24,49 @@ export async function POST(req: Request): Promise<Response> {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err: any) {
     console.error(`Webhook signature verification failed. ${err.message}`);
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    return NextResponse.json({ error: err.message } as ErrorResponse, { status: 400 });
   }
 
-  data = event.data;
-  eventType = event.type;
+  const data = event.data.object;
+  const eventType = event.type;
+
+  console.log(`Received event type: ${eventType}`);
+  console.log(`Event data: ${JSON.stringify(data)}`);
 
   try {
     switch (eventType) {
       case 'checkout.session.completed': {
-        let user;
-        const session = await stripe.checkout.sessions.retrieve(
-          data.object.id as string,
-          {
-            expand: ['line_items']
-          }
-        );
-        const customerId = session?.customer as string;
-        const customer = await stripe.customers.retrieve(customerId);
-        const priceId = session?.line_items?.data[0]?.price?.id;
+        const session = data as Stripe.Checkout.Session;
+        const email = session.customer_details?.email;
+        const subscriptionId = session.subscription as string;
 
-        if (customer.email) {
-          user = await User.findOne({ email: customer.email });
-
-          if (!user) {
-            user = new User({
-              email: customer.email,
-              name: customer.name,
-              customerId
-            });
-
-            await user.save();
-          }
-        } else {
-          console.error('No user found');
-          throw new Error('No user found');
+        if (!email) {
+          throw new Error('No customer email found in session data');
         }
 
-        // Update user data + Grant user access to your product. It's a boolean in the database, but could be a number of credits, etc...
-        user.priceId = priceId;
+        console.log(`Fetching user with email: ${email}`);
+        const userResult = await fetcher(`http://localhost:3000/api/users/email/${email}`, { method: 'GET' });
+        let user = userResult.data;
+
+        if (!user) {
+          console.log(`User with email ${email} not found. Skipping update.`);
+          break;
+        }
+
+        // Update user data + Grant user access to your product + Save subscription ID.
         user.hasAccess = true;
-        await user.save();
+        user.stripe_subscription_id = subscriptionId;
+
+        console.log(`Updating user with email: ${email}`);
+        await fetcher(`http://localhost:3000/api/users/email/${email}}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(user),
+        });
+
+        console.log(`User updated: ${JSON.stringify(user)}`);
 
         // Extra: >>>>> send email to dashboard <<<<
 
@@ -72,29 +74,42 @@ export async function POST(req: Request): Promise<Response> {
       }
 
       case 'customer.subscription.deleted': {
-        // ❌ Revoke access to the product
-        const subscription = await stripe.subscriptions.retrieve(
-          data.object.id as string
-        );
-        const user = await User.findOne({
-          customerId: subscription.customer as string
+        const subscription = data as Stripe.Subscription;
+        const subscriptionId = subscription.id;
+
+        console.log(`Retrieving user with subscription ID: ${subscriptionId}`);
+        const userResult = await fetcher(`http://localhost:3000/api/users/subscription/${subscriptionId}`, { method: 'GET' });
+        const user = userResult.data;
+
+        if (!user) {
+          console.log(`User with subscription ID ${subscriptionId} not found. Skipping update.`);
+          break;
+        }
+
+        user.hasAccess = false;
+
+        console.log(`Updating user to revoke access for subscription ID: ${subscriptionId}`);
+        await fetcher(`/api/users/subscription/${subscriptionId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(user),
         });
 
-        if (user) {
-          user.hasAccess = false;
-          await user.save();
-        }
+        console.log(`User access revoked for subscription ID: ${subscriptionId}`);
 
         break;
       }
 
       default:
-      // Unhandled event type
+        console.log(`Unhandled event type: ${eventType}`);
     }
   } catch (e: any) {
     console.error(
       'stripe error: ' + e.message + ' | EVENT TYPE: ' + eventType
     );
+    return NextResponse.json({ error: e.message } as ErrorResponse, { status: 500 });
   }
 
   return NextResponse.json({});
